@@ -36,9 +36,13 @@
         "task_initiation",
         "inhibition_and_planning"
       ],
-      "question_ids": ["q1", "q2", "q3"],
+      "question_ids": [
+        "q1",
+        "q2",
+        "q3"
+      ],
       "max_raw_score": 9,
-      "weight_in_composite": 0.40
+      "weight_in_composite": 0.4
     },
     {
       "id": "attention_span",
@@ -48,7 +52,11 @@
         "distractibility",
         "completion_persistence"
       ],
-      "question_ids": ["q4", "q5", "q6"],
+      "question_ids": [
+        "q4",
+        "q5",
+        "q6"
+      ],
       "max_raw_score": 9,
       "weight_in_composite": 0.35
     },
@@ -60,7 +68,11 @@
         "feedback_reactivity",
         "frustration_avoidance"
       ],
-      "question_ids": ["q7", "q8", "q9"],
+      "question_ids": [
+        "q7",
+        "q8",
+        "q9"
+      ],
       "max_raw_score": 9,
       "weight_in_composite": 0.25
     }
@@ -164,41 +176,140 @@
     "cognitive_profile_vector_mapping": {
       "attention_span_minutes": {
         "formula": "round(25.0 - (S_AS / 9.0) * (25.0 - 5.0))",
-        "range": [5, 25],
+        "range": [
+          5,
+          25
+        ],
         "unit": "minutes",
         "description": "Ước tính khoảng chú ý tập trung liên tục vào bài tập có cấu trúc"
       },
       "recommended_micro_task_duration_sec": {
         "formula": "clamp(60, 300, round((300.0 - (S_AS / 9.0) * 210.0) / 30.0) * 30)",
-        "range": [60, 300],
+        "range": [
+          60,
+          300
+        ],
         "step": 30,
         "unit": "seconds",
         "description": "Thời lượng khuyến nghị cho mỗi bước vi nhiệm vụ nguyên tử (làm tròn bội số 30s)"
       },
       "working_memory_capacity": {
         "formula": "clamp(1, 5, round(5.0 - (S_EF / 9.0) * 4.0))",
-        "range": [1, 5],
+        "range": [
+          1,
+          5
+        ],
         "unit": "chunks",
         "description": "Sức chứa tối đa thông tin/thao tác xử lý đồng thời trong trí nhớ làm việc"
       },
       "rsd_sensitivity_level": {
         "type": "categorical",
         "thresholds": [
-          {"level": "LOW", "condition": "0 <= S_RSD <= 2"},
-          {"level": "MEDIUM", "condition": "3 <= S_RSD <= 4"},
-          {"level": "HIGH", "condition": "5 <= S_RSD <= 7"},
-          {"level": "SEVERE", "condition": "8 <= S_RSD <= 9"}
+          {
+            "level": "LOW",
+            "condition": "0 <= S_RSD <= 2"
+          },
+          {
+            "level": "MEDIUM",
+            "condition": "3 <= S_RSD <= 4"
+          },
+          {
+            "level": "HIGH",
+            "condition": "5 <= S_RSD <= 7"
+          },
+          {
+            "level": "SEVERE",
+            "condition": "8 <= S_RSD <= 9"
+          }
         ],
         "description": "Mức độ nhạy cảm thất bại kích hoạt quy trình bảo vệ cảm xúc và ngoại hóa lỗi"
       },
       "scaffolding_level": {
         "type": "categorical",
         "thresholds": [
-          {"level": "MINIMAL", "condition": "CDI < 0.35", "max_steps_per_session": 6},
-          {"level": "MODERATE", "condition": "0.35 <= CDI < 0.70", "max_steps_per_session": 4},
-          {"level": "INTENSIVE", "condition": "CDI >= 0.70", "max_steps_per_session": 3}
+          {
+            "level": "MINIMAL",
+            "condition": "CDI < 0.35",
+            "max_steps_per_session": 6
+          },
+          {
+            "level": "MODERATE",
+            "condition": "0.35 <= CDI < 0.70",
+            "max_steps_per_session": 4
+          },
+          {
+            "level": "INTENSIVE",
+            "condition": "CDI >= 0.70",
+            "max_steps_per_session": 3
+          }
         ],
         "description": "Cấp độ giàn giáo sư phạm và số bước vi nhiệm vụ tối đa mỗi phiên"
+      },
+      "scaffolding_tiers": {
+        "type": "5_tier_adaptive_spectrum",
+        "description": "Phổ giàn giáo nhận thức 5 bậc liên tục từ ADHD rất nặng đến tiệm cận bình thường/vượt trội",
+        "tiers": [
+          {
+            "tier_id": 1,
+            "tier_code": "TIER_1_ULTRA_ATOMIC",
+            "tier_name": "Siêu phân rã (Ultra-Atomic)",
+            "condition": "CDI >= 0.75 or WM <= 1",
+            "target_step_count": 5,
+            "scaffolding_level": "INTENSIVE",
+            "option_count": 2,
+            "auto_hint_delay_sec": 12,
+            "error_masking": true,
+            "description": "Dành cho trẻ ADHD nặng hoặc đang quá tải: băm nhỏ tối đa 5 bước, mỗi bước 1 động từ đơn."
+          },
+          {
+            "tier_id": 2,
+            "tier_code": "TIER_2_HIGH_SCAFFOLD",
+            "tier_name": "Giàn giáo chuyên sâu (High Scaffold)",
+            "condition": "0.55 <= CDI < 0.75 or WM == 2",
+            "target_step_count": 4,
+            "scaffolding_level": "INTENSIVE",
+            "option_count": 3,
+            "auto_hint_delay_sec": 20,
+            "error_masking": true,
+            "description": "Chuẩn GDPT 2018: 4 bước (Gạch chân đầy đủ -> Ý nghĩa từ khóa -> Chọn phép tính -> Tính toán)."
+          },
+          {
+            "tier_id": 3,
+            "tier_code": "TIER_3_BALANCED",
+            "tier_name": "Giàn giáo cân bằng (Balanced)",
+            "condition": "0.35 <= CDI < 0.55 or WM == 3",
+            "target_step_count": 3,
+            "scaffolding_level": "MODERATE",
+            "option_count": 4,
+            "auto_hint_delay_sec": 0,
+            "error_masking": false,
+            "description": "Dành cho trẻ tiến bộ: 3 bước gộp (Đọc & chọn phép tính -> Đặt tính -> Kết luận danh số)."
+          },
+          {
+            "tier_id": 4,
+            "tier_code": "TIER_4_GUIDED",
+            "tier_name": "Tự lập có hướng dẫn (Guided Independence)",
+            "condition": "0.20 <= CDI < 0.35 or WM == 4",
+            "target_step_count": 2,
+            "scaffolding_level": "MINIMAL",
+            "option_count": 4,
+            "auto_hint_delay_sec": 0,
+            "error_masking": false,
+            "description": "Dành cho trẻ tiệm cận bình thường: 2 bước (Tự lập biểu thức và tính đáp số trong 1 card -> Ghi đáp số)."
+          },
+          {
+            "tier_id": 5,
+            "tier_code": "TIER_5_MASTERY",
+            "tier_name": "Tự chủ & Mở rộng (Full Mastery)",
+            "condition": "CDI < 0.20 or WM == 5",
+            "target_step_count": 1,
+            "scaffolding_level": "MINIMAL",
+            "option_count": 4,
+            "auto_hint_delay_sec": 0,
+            "error_masking": false,
+            "description": "Dành cho trẻ đạt chuẩn bình thường/năng khiếu: 1 bước giải trọn vẹn + 1 câu hỏi thử thách mở rộng."
+          }
+        ]
       }
     },
     "prompt_injection_directives": {
@@ -215,6 +326,28 @@
         "condition_low_or_medium": "Giọng điệu khích lệ tích cực, khen ngợi quy trình làm bài."
       },
       "visual_timer_interval_sec": "Bằng recommended_micro_task_duration_sec"
+    },
+    "adaptive_telemetry_updating": {
+      "algorithm": "Exponential Moving Average (EMA) with Max-Delta Guardrail",
+      "learning_rate_alpha": 0.15,
+      "max_delta_per_session": 0.1,
+      "metrics_collected": [
+        "task_initiation_latency_sec (T_init): thời gian từ lúc mở thẻ đến cú chạm đầu tiên",
+        "mistakes_count (N_err): số lần chọn sai, bấm xóa Numpad hoặc đổi đáp án",
+        "hints_used (N_hint): số cấp độ gợi ý đã yêu cầu",
+        "actual_duration_sec & timer_allocated_sec: tỷ lệ thời gian hoàn thành",
+        "focus_duration_min: thời gian tập trung liên tục trước khi soft pause/idle",
+        "post_error_freeze_sec: thời gian đứng hình sau khi làm sai",
+        "milo_rescues_count: số lần kích hoạt thở 4-4-4 và trợ giúp Milo",
+        "abandoned_count: số bài tập bỏ dở"
+      ],
+      "formulas": {
+        "O_EF": "0.35 * clamp(0, 1, (T_init - 3.0)/20.0) + 0.40 * min(1, N_err/3.0) + 0.25 * min(1, N_hint/3.0)",
+        "O_AS": "0.60 * clamp(0, 1, (time_ratio - 0.5)/1.0) + 0.40 * clamp(0, 1, 1.0 - focus_duration_min/15.0)",
+        "O_RSD": "min(1, T_freeze/15.0) * 0.45 + min(1, N_rescue/2.0) * 0.35 + min(1, N_abandon/1.0) * 0.20",
+        "delta_bounded": "clamp(-max_delta, max_delta, alpha * (O_metric - current_metric))",
+        "new_metric": "clamp(0.0, 1.0, current_metric + delta_bounded)"
+      }
     }
   }
 }

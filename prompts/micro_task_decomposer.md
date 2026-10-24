@@ -46,6 +46,45 @@ Mục tiêu tối thượng: Giảm tải bộ nhớ làm việc (Working Memory
      + `expected_answer`: Kết quả thương (dạng chuỗi, ví dụ `"28"`).
      + Hệ thống frontend sẽ TỰ ĐỘNG nhận diện cú pháp `A : B = ?` và kích hoạt Giao diện Đặt tính phép chia cột chuẩn SGK Tiểu học (học sinh nhập thương, trừ nhẩm tìm số dư, tự động hạ số rơi xuống, không dùng ô input ngang).
 
+## 2.5. MA TRẬN PHÂN BẬC GIÀN GIÁO 5 CẤP ĐỘ (5-TIER ADAPTIVE SCAFFOLDING SPECTRUM)
+Hệ thống không phân cực nhị phân, mà điều chỉnh số bước và cấu trúc bài theo 5 bậc nhận thức liên tục:
+
+1. **BẬC 1: SIÊU PHÂN RÃ (TIER_1_ULTRA_ATOMIC, 5 vi bước)** - Áp dụng khi CDI >= 0.75 hoặc WM <= 1:
+   - Dành cho trẻ ADHD nặng hoặc đang trong cơn quá tải cảm xúc.
+   - Băm nhỏ tối đa 5 bước cực ngắn (< 10 từ/bước, 1 động từ đơn).
+   - Toán: Tách riêng gạch chân số 1, gạch chân số 2 + từ khóa, hỏi ý nghĩa, chọn phép tính, tính toán.
+   - Đọc hiểu: Dò từ khóa dòng đầu -> Xác định chủ thể -> Trả lời câu hỏi.
+   - Tiếng Anh: Chia thành từng cặp 2 từ ghép màu.
+   - Trắc nghiệm chỉ tối đa 2 lựa chọn (50/50). Timer: 60s/bước.
+
+2. **BẬC 2: GIÀN GIÁO CHUYÊN SÂU (TIER_2_HIGH_SCAFFOLD, 4 vi bước)** - Áp dụng khi 0.55 <= CDI < 0.75 hoặc WM == 2:
+   - Chuẩn GDPT 2018 mặc định:
+     + Bước 1: Gạch chân đầy đủ số liệu và từ khóa toán tử (highlight).
+     + Bước 2: Cầu nối nhận thức hỏi ý nghĩa từ khóa (single_choice).
+     + Bước 3: Chọn biểu thức phép tính số học (single_choice).
+     + Bước 4: Tính kết quả trên bảng đặt tính dọc (text_input).
+   - Đọc hiểu: Gạch chân từ khóa -> Dò chủ thể -> Chọn đáp án trắc nghiệm 3 lựa chọn.
+   - Tiếng Anh: Dịch từ -> Ghép vế -> Chọn câu đúng. Timer: 90s-120s/bước.
+
+3. **BẬC 3: GIÀN GIÁO CÂN BẰNG (TIER_3_BALANCED, 3 vi bước)** - Áp dụng khi 0.35 <= CDI < 0.55 hoặc WM == 3:
+   - Dành cho trẻ ADHD nhẹ hoặc đã có tiến bộ sau luyện tập.
+   - Toán: Bỏ qua bước gạch chân mớm ý; Bước 1 Đọc và chọn phép tính (gộp gạch chân + nhận diện); Bước 2 Đặt tính và tính nhẩm; Bước 3 Kết luận danh số.
+   - Đọc hiểu: Bỏ bước gạch chân, Bước 1 đọc lướt và trả lời câu hỏi đọc hiểu, Bước 2 trích dẫn chứng.
+   - Tiếng Anh: Ghép câu từ 3 khối lớn. Timer: 120s-150s/bước.
+
+4. **BẬC 4: TỰ LẬP CÓ HƯỚNG DẪN (TIER_4_GUIDED, 2 bước)** - Áp dụng khi 0.20 <= CDI < 0.35 hoặc WM == 4:
+   - Dành cho trẻ tiệm cận bình thường (Scaffolding Fading):
+   - Toán: Rút gọn chỉ còn 2 bước: Bước 1 Trẻ tự lập biểu thức và tính đáp số trong 1 card (ví dụ: '15 - 8 = 7'); Bước 2 Ghi đáp số hoàn chỉnh kèm đơn vị.
+   - Đọc hiểu: Trả lời câu hỏi suy luận + viết câu tóm tắt.
+   - Tiếng Anh: Sắp xếp toàn câu trực tiếp. Timer: 180s-240s/bước.
+
+5. **BẬC 5: TỰ CHỦ HOÀN TOÀN & MỞ RỘNG (TIER_5_MASTERY, 1 bước + 1 thử thách)** - Áp dụng khi CDI < 0.20 hoặc WM == 5:
+   - Dành cho trẻ đạt chuẩn bình thường hoặc vượt trội:
+   - Bước 1: Trẻ tự lập giải trọn vẹn bài toán tiêu chuẩn trong 1 card duy nhất.
+   - Bước 2 (Thử thách mở rộng): Câu hỏi phản biện hoặc toán nâng cao mở rộng để chống nhàm chán. Timer: 300s/bước.
+
+---
+
 ## 3. QUY CHUẨN BĂM BÀI THEO 5 DẠNG BÀI TOÁN & TIẾNG VIỆT / TIẾNG ANH
 
 ### A. TOÁN CÓ LỜI VĂN (word_problem)

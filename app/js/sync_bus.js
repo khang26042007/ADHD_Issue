@@ -993,6 +993,34 @@
           if (typeof bus.savePersistedState === 'function') {
             bus.savePersistedState(appState);
           }
+
+      // 13. COGNITIVE_PROFILE_UPDATED: Adaptive real-time cognitive profile synchronization
+      bus.subscribe('COGNITIVE_PROFILE_UPDATED', (payload, envelope) => {
+        if (!payload) return;
+        const newProfile = payload.cognitive_profile || payload;
+        const targetKid = payload.target_kid_id || payload.kid_id || (envelope && (envelope.target_kid_id || envelope.kid_id));
+
+        if (typeof appState !== 'undefined') {
+          if (!targetKid || targetKid === appState.activeChildId || targetKid === appState.childDeviceKidId) {
+            appState.cognitiveProfile = newProfile;
+            try {
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('milo_cognitive_profile', JSON.stringify(newProfile));
+              }
+            } catch(e) {}
+            if (typeof updateCognitiveProfileUI === 'function') {
+              updateCognitiveProfileUI(newProfile);
+            }
+          }
+        }
+
+        const tierInfo = payload.tier_info || (newProfile && newProfile.scaffolding_tier_info) || {};
+        const tierName = tierInfo.tier_name || newProfile.scaffolding_tier || 'Bậc thích ứng';
+        if (typeof showToast === 'function') {
+          showToast("Hồ Sơ Nhận Thức Thích Ứng", `Bé vừa cập nhật: ${tierName}!`, "🎯");
+        }
+      });
+
           if (typeof showToast === 'function') {
             if (payload.routines.length > 0) {
               showToast("Nề Nếp Mới!", `Mẹ vừa cập nhật ${payload.routines.length} thói quen mới trên Đảo Thói Quen!`, "🌟");

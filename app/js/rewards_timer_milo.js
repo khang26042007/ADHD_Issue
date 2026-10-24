@@ -15,21 +15,61 @@
       const totalSteps = appState.activeTask ? appState.activeTask.steps.length : 3;
       const isFinalStep = appState.currentStepIndex >= totalSteps - 1;
 
-      // Broadcast STEP_COMPLETED & STARS_SYNC
-      if (window.miloBus) {
-        window.miloBus.broadcast('STEP_COMPLETED', {
+      // 1.5. Dynamic Adaptive Cognitive Profile Updating
+      const durationSec = window._stepStartTs ? Math.max(1, (Date.now() - window._stepStartTs) / 1000) : 45;
+      const tMeta = window._stepTelemetry || {};
+      const telemetryPayload = {
+        task_initiation_latency_sec: tMeta.task_initiation_latency_sec !== null && tMeta.task_initiation_latency_sec !== undefined ? tMeta.task_initiation_latency_sec : 4.0,
+        mistakes_count: tMeta.mistakes_count || 0,
+        hints_used: tMeta.hints_used || 0,
+        actual_duration_sec: durationSec,
+        timer_allocated_sec: (appState.activeTask && appState.activeTask.steps && appState.activeTask.steps[appState.currentStepIndex] && appState.activeTask.steps[appState.currentStepIndex].duration_sec) || 120,
+        focus_duration_min: Math.min(25, durationSec / 60 + 5),
+        post_error_freeze_sec: tMeta.post_error_freeze_sec || 0,
+        milo_rescues_count: appState.pauseCount || 0,
+        abandoned_count: 0,
+        task_id: appState.activeTask ? appState.activeTask.id : 'unknown',
+        step_id: appState.currentStepIndex
+      };
+
+      if (typeof adaptiveUpdateCognitiveProfile === 'function') {
+        const updatedProf = adaptiveUpdateCognitiveProfile(appState.cognitiveProfile, telemetryPayload);
+        appState.cognitiveProfile = updatedProf;
+      }
+
+      // Broadcast STEP_COMPLETED & STARS_SYNC & TELEMETRY
+      const targetBus = window.miloBus || window.syncBus;
+      if (targetBus && typeof targetBus.broadcast === 'function') {
+        targetBus.broadcast('STEP_COMPLETED', {
           taskId: appState.activeTask ? appState.activeTask.id : 'unknown',
           stepIndex: appState.currentStepIndex,
           totalSteps: totalSteps,
           starsEarned: earned,
           totalStarsNow: newStars,
-          isTaskComplete: isFinalStep
+          isTaskComplete: isFinalStep,
+          telemetry: telemetryPayload,
+          cognitive_profile: appState.cognitiveProfile
         });
-        window.miloBus.broadcast('STARS_SYNC', {
+        targetBus.broadcast('STARS_SYNC', {
           totalStars: newStars,
           delta: earned,
           reason: 'step_reward'
         });
+        targetBus.broadcast('STEP_TELEMETRY_UPDATE', {
+          kid_id: appState.childDeviceKidId || 'kid_leo_01',
+          telemetry: telemetryPayload,
+          cognitive_profile: appState.cognitiveProfile
+        });
+      }
+
+      // Asynchronous API call to persist in backend database
+      if (typeof fetch !== 'undefined') {
+        const kidId = appState.childDeviceKidId || 'kid_leo_01';
+        fetch(`/api/child/${kidId}/telemetry`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(telemetryPayload)
+        }).catch(() => {});
       }
 
       if (!isFinalStep) {

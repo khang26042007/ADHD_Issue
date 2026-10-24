@@ -13,6 +13,8 @@ from src.adhd_scoring.scoring_service import (
     get_default_survey_path,
     load_survey_definition,
     validate_survey_answers,
+    resolve_scaffolding_tier,
+    adaptive_update_cognitive_profile,
     ScoringService,
 )
 
@@ -267,6 +269,100 @@ class TestScoringServiceClassAndInterfaceContract(unittest.TestCase):
         ]
         for key in directive_keys:
             self.assertIn(key, directives, f"Missing directive key: {key}")
+
+
+class TestAdaptiveCognitiveUpdating(unittest.TestCase):
+    """Verifies real-time dynamic cognitive profile updates and 5-tier scaffolding spectrum."""
+
+    def test_5_tier_resolution(self):
+        t1 = resolve_scaffolding_tier(0.85, 1)
+        self.assertEqual(t1["scaffolding_tier"], "TIER_1_ULTRA_ATOMIC")
+        self.assertEqual(t1["target_step_count"], 5)
+
+        t2 = resolve_scaffolding_tier(0.60, 2)
+        self.assertEqual(t2["scaffolding_tier"], "TIER_2_HIGH_SCAFFOLD")
+        self.assertEqual(t2["target_step_count"], 4)
+
+        t3 = resolve_scaffolding_tier(0.45, 3)
+        self.assertEqual(t3["scaffolding_tier"], "TIER_3_BALANCED")
+        self.assertEqual(t3["target_step_count"], 3)
+
+        t4 = resolve_scaffolding_tier(0.28, 4)
+        self.assertEqual(t4["scaffolding_tier"], "TIER_4_GUIDED")
+        self.assertEqual(t4["target_step_count"], 2)
+
+        t5 = resolve_scaffolding_tier(0.12, 5)
+        self.assertEqual(t5["scaffolding_tier"], "TIER_5_MASTERY")
+        self.assertEqual(t5["target_step_count"], 1)
+
+    def test_adaptive_update_improving_child(self):
+        # Initial baseline: Moderate ADHD (CDI around 0.66)
+        baseline = calculate_cognitive_profile([2] * 9)
+        self.assertEqual(baseline["scaffolding_tier"], "TIER_2_HIGH_SCAFFOLD")
+
+        # Telemetry: Fast initiation (3s), 0 mistakes, 0 hints, fast completion (40s/120s), continuous focus
+        telemetry = {
+            "task_initiation_latency_sec": 3.0,
+            "mistakes_count": 0,
+            "hints_used": 0,
+            "actual_duration_sec": 40.0,
+            "timer_allocated_sec": 120.0,
+            "focus_duration_min": 15.0,
+            "post_error_freeze_sec": 0.0,
+            "milo_rescues_count": 0,
+            "abandoned_count": 0,
+        }
+        updated = adaptive_update_cognitive_profile(baseline, telemetry, alpha=0.30, max_delta=0.20)
+
+        # Deficits should reduce, composite deficit index should decrease
+        self.assertLess(
+            updated["normalized_indices"]["composite_deficit_index"],
+            baseline["normalized_indices"]["composite_deficit_index"]
+        )
+        self.assertIn("adaptive_audit_trail", updated)
+
+    def test_adaptive_update_struggling_child(self):
+        # Initial baseline: Mild/Balanced (CDI around 0.33)
+        baseline = calculate_cognitive_profile([1] * 9)
+
+        # Telemetry: High latency, 3 mistakes, 3 hints, post-error freeze, rescue called
+        telemetry = {
+            "task_initiation_latency_sec": 25.0,
+            "mistakes_count": 3,
+            "hints_used": 3,
+            "actual_duration_sec": 150.0,
+            "timer_allocated_sec": 120.0,
+            "focus_duration_min": 3.0,
+            "post_error_freeze_sec": 20.0,
+            "milo_rescues_count": 2,
+            "abandoned_count": 1,
+        }
+        updated = adaptive_update_cognitive_profile(baseline, telemetry, alpha=0.30, max_delta=0.20)
+
+        # Deficits should increase
+        self.assertGreater(
+            updated["normalized_indices"]["composite_deficit_index"],
+            baseline["normalized_indices"]["composite_deficit_index"]
+        )
+
+    def test_max_delta_guardrail_bounding(self):
+        baseline = calculate_cognitive_profile([2] * 9)
+        # Extreme telemetry with high alpha, but max_delta is 0.08
+        telemetry = {
+            "task_initiation_latency_sec": 1.0,
+            "mistakes_count": 0,
+            "hints_used": 0,
+            "actual_duration_sec": 10.0,
+            "timer_allocated_sec": 120.0,
+            "focus_duration_min": 30.0,
+            "post_error_freeze_sec": 0.0,
+            "milo_rescues_count": 0,
+            "abandoned_count": 0,
+        }
+        updated = adaptive_update_cognitive_profile(baseline, telemetry, alpha=1.0, max_delta=0.08)
+        old_cdi = baseline["normalized_indices"]["composite_deficit_index"]
+        new_cdi = updated["normalized_indices"]["composite_deficit_index"]
+        self.assertLessEqual(abs(old_cdi - new_cdi), 0.09)
 
 
 if __name__ == "__main__":

@@ -1116,6 +1116,168 @@
       { value: 3, label: "Rất thường xuyên" }
     ];
 
+    function resolveScaffoldingTier(cdi, wm) {
+      if (cdi >= 0.75 || wm <= 1) {
+        return {
+          tier_id: 1,
+          scaffolding_tier: "TIER_1_ULTRA_ATOMIC",
+          tier_name: "Siêu phân rã (Ultra-Atomic)",
+          scaffolding_level: "INTENSIVE",
+          target_step_count: 5,
+          option_count: 2,
+          auto_hint_delay_sec: 12,
+          error_masking: true,
+          pedagogical_focus: "Băm nhỏ tối đa 5 bước, mỗi bước 1 thao tác cơ học duy nhất, 1 động từ đơn."
+        };
+      } else if (cdi >= 0.55 || wm === 2) {
+        return {
+          tier_id: 2,
+          scaffolding_tier: "TIER_2_HIGH_SCAFFOLD",
+          tier_name: "Giàn giáo chuyên sâu (High Scaffold)",
+          scaffolding_level: "INTENSIVE",
+          target_step_count: 4,
+          option_count: 3,
+          auto_hint_delay_sec: 20,
+          error_masking: true,
+          pedagogical_focus: "Chuẩn 4 bước GDPT 2018: Gạch chân đầy đủ -> Cầu nối nhận thức -> Chọn phép tính -> Tính toán."
+        };
+      } else if (cdi >= 0.35 || wm === 3) {
+        return {
+          tier_id: 3,
+          scaffolding_tier: "TIER_3_BALANCED",
+          tier_name: "Giàn giáo cân bằng (Balanced)",
+          scaffolding_level: "MODERATE",
+          target_step_count: 3,
+          option_count: 4,
+          auto_hint_delay_sec: 0,
+          error_masking: false,
+          pedagogical_focus: "Rút gọn thành 3 bước: Đọc và chọn phép tính -> Đặt tính và tính nhẩm -> Kết luận danh số."
+        };
+      } else if (cdi >= 0.20 || wm === 4) {
+        return {
+          tier_id: 4,
+          scaffolding_tier: "TIER_4_GUIDED",
+          tier_name: "Tự lập có hướng dẫn (Guided Independence)",
+          scaffolding_level: "MINIMAL",
+          target_step_count: 2,
+          option_count: 4,
+          auto_hint_delay_sec: 0,
+          error_masking: false,
+          pedagogical_focus: "Rút xuống 2 bước: Tự lập biểu thức và tính đáp số trong 1 card -> Ghi đáp số đầy đủ."
+        };
+      } else {
+        return {
+          tier_id: 5,
+          scaffolding_tier: "TIER_5_MASTERY",
+          tier_name: "Tự chủ & Mở rộng (Full Mastery)",
+          scaffolding_level: "MINIMAL",
+          target_step_count: 1,
+          option_count: 4,
+          auto_hint_delay_sec: 0,
+          error_masking: false,
+          pedagogical_focus: "Trẻ tự lập hoàn toàn: 1 bước giải trọn vẹn và 1 câu hỏi thử thách mở rộng."
+        };
+      }
+    }
+    if (typeof window !== 'undefined') window.resolveScaffoldingTier = resolveScaffoldingTier;
+
+    function adaptiveUpdateCognitiveProfile(currentProfile, telemetryData, alpha = 0.15, maxDelta = 0.10) {
+      if (!currentProfile) currentProfile = (typeof appState !== 'undefined' && appState.cognitiveProfile) || {};
+      if (!telemetryData) telemetryData = {};
+
+      const norm = currentProfile.normalized_indices || {};
+      let cur_ef = norm.executive_function_deficit_index !== undefined ? Number(norm.executive_function_deficit_index) : 0.5;
+      let cur_as = norm.attention_decay_index !== undefined ? Number(norm.attention_decay_index) : 0.5;
+      let cur_rsd = norm.rejection_sensitivity_index !== undefined ? Number(norm.rejection_sensitivity_index) : 0.5;
+
+      const t_init = Number(telemetryData.task_initiation_latency_sec !== undefined ? telemetryData.task_initiation_latency_sec : 5.0);
+      const n_err = Number(telemetryData.mistakes_count !== undefined ? telemetryData.mistakes_count : 0);
+      const n_hint = Number(telemetryData.hints_used !== undefined ? telemetryData.hints_used : 0);
+      const actual_sec = Number(telemetryData.actual_duration_sec !== undefined ? telemetryData.actual_duration_sec : 60.0);
+      const timer_sec = Number(telemetryData.timer_allocated_sec !== undefined ? telemetryData.timer_allocated_sec : 120.0);
+      const focus_min = Number(telemetryData.focus_duration_min !== undefined ? telemetryData.focus_duration_min : 10.0);
+      const t_freeze = Number(telemetryData.post_error_freeze_sec !== undefined ? telemetryData.post_error_freeze_sec : 0.0);
+      const n_rescue = Number(telemetryData.milo_rescues_count !== undefined ? telemetryData.milo_rescues_count : 0);
+      const n_abandon = Number(telemetryData.abandoned_count !== undefined ? telemetryData.abandoned_count : 0);
+
+      // Empirical Observations
+      const obs_ef = Math.max(0.0, Math.min(1.0, 
+        0.35 * Math.max(0.0, Math.min(1.0, (t_init - 3.0) / 20.0)) +
+        0.40 * Math.min(1.0, n_err / 3.0) +
+        0.25 * Math.min(1.0, n_hint / 3.0)
+      ));
+
+      const time_ratio = actual_sec / Math.max(1.0, timer_sec);
+      const time_factor = Math.max(0.0, Math.min(1.0, (time_ratio - 0.5) / 1.0));
+      const focus_factor = Math.max(0.0, Math.min(1.0, 1.0 - (focus_min / 15.0)));
+      const obs_as = Math.max(0.0, Math.min(1.0, 0.60 * time_factor + 0.40 * focus_factor));
+
+      const obs_rsd = Math.max(0.0, Math.min(1.0,
+        (Math.min(1.0, t_freeze / 15.0) * 0.45) +
+        (Math.min(1.0, n_rescue / 2.0) * 0.35) +
+        (Math.min(1.0, n_abandon / 1.0) * 0.20)
+      ));
+
+      const delta_ef = Math.max(-maxDelta, Math.min(maxDelta, alpha * (obs_ef - cur_ef)));
+      const delta_as = Math.max(-maxDelta, Math.min(maxDelta, alpha * (obs_as - cur_as)));
+      const delta_rsd = Math.max(-maxDelta, Math.min(maxDelta, alpha * (obs_rsd - cur_rsd)));
+
+      const new_ef = Math.round(Math.max(0.0, Math.min(1.0, cur_ef + delta_ef)) * 10000) / 10000;
+      const new_as = Math.round(Math.max(0.0, Math.min(1.0, cur_as + delta_as)) * 10000) / 10000;
+      const new_rsd = Math.round(Math.max(0.0, Math.min(1.0, cur_rsd + delta_rsd)) * 10000) / 10000;
+      const new_cdi = Math.round(((0.40 * new_ef) + (0.35 * new_as) + (0.25 * new_rsd)) * 10000) / 10000;
+
+      const attention_span_minutes = Math.max(5, Math.min(25, Math.round(25.0 - (new_as * 20.0))));
+      const raw_micro_duration = 300.0 - (new_as * 210.0);
+      const recommended_micro_task_duration_sec = Math.max(60, Math.min(300, Math.round(raw_micro_duration / 30.0) * 30));
+      const working_memory_capacity = Math.max(1, Math.min(5, Math.round(5.0 - (new_ef * 4.0))));
+
+      const rsd_raw = new_rsd * 9.0;
+      const rsd_sensitivity_level = rsd_raw <= 2.0 ? "LOW" : rsd_raw <= 4.0 ? "MEDIUM" : rsd_raw <= 7.0 ? "HIGH" : "SEVERE";
+
+      const tier_info = resolveScaffoldingTier(new_cdi, working_memory_capacity);
+
+      const updated = Object.assign({}, currentProfile, {
+        attention_span_minutes: attention_span_minutes,
+        recommended_micro_task_duration_sec: recommended_micro_task_duration_sec,
+        working_memory_capacity: working_memory_capacity,
+        rsd_sensitivity_level: rsd_sensitivity_level,
+        scaffolding_level: tier_info.scaffolding_level,
+        scaffolding_tier: tier_info.scaffolding_tier,
+        scaffolding_tier_info: tier_info,
+        max_steps_per_session: tier_info.target_step_count,
+        normalized_indices: {
+          executive_function_deficit_index: new_ef,
+          attention_decay_index: new_as,
+          rejection_sensitivity_index: new_rsd,
+          composite_deficit_index: new_cdi
+        },
+        raw_scores: {
+          executive_function: Math.round(new_ef * 9.0 * 10) / 10,
+          attention_span: Math.round(new_as * 9.0 * 10) / 10,
+          rsd_sensitivity: Math.round(new_rsd * 9.0 * 10) / 10,
+          total_score: Math.round((new_ef + new_as + new_rsd) * 9.0 * 10) / 10
+        },
+        last_telemetry_adaptive_time: Date.now()
+      });
+
+      if (typeof appState !== 'undefined') {
+        appState.cognitiveProfile = updated;
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('milo_cognitive_profile', JSON.stringify(updated));
+          }
+        } catch(e) {}
+      }
+
+      if (typeof updateCognitiveProfileUI === 'function') {
+        updateCognitiveProfileUI(updated);
+      }
+
+      return updated;
+    }
+    if (typeof window !== 'undefined') window.adaptiveUpdateCognitiveProfile = adaptiveUpdateCognitiveProfile;
+
     function calculateCognitiveProfileFromAnswers(answers) {
       let q = [];
       if (Array.isArray(answers)) {
@@ -1149,6 +1311,7 @@
       const rsd_sensitivity_level = S_RSD <= 2 ? "LOW" : S_RSD <= 4 ? "MEDIUM" : S_RSD <= 7 ? "HIGH" : "SEVERE";
       const scaffolding_level = CDI < 0.35 ? "MINIMAL" : CDI < 0.70 ? "MODERATE" : "INTENSIVE";
       const max_steps_per_session = CDI < 0.35 ? 6 : CDI < 0.70 ? 4 : 3;
+      const tier_info = resolveScaffoldingTier(CDI, working_memory_capacity);
 
       return {
         attention_span_minutes,
@@ -1156,6 +1319,8 @@
         working_memory_capacity,
         rsd_sensitivity_level,
         scaffolding_level,
+        scaffolding_tier: tier_info.scaffolding_tier,
+        scaffolding_tier_info: tier_info,
         max_steps_per_session,
         raw_scores: {
           executive_function: S_EF,
@@ -1174,7 +1339,8 @@
 
     function updateCognitiveProfileUI(profile) {
       if (!profile) profile = appState.cognitiveProfile || DEFAULT_COGNITIVE_PROFILE;
-      const badgeText = `🎯 Hồ sơ nhận thức: Chú ý ${profile.attention_span_minutes}p • Vi bước ${profile.recommended_micro_task_duration_sec}s • RSD ${profile.rsd_sensitivity_level}`;
+      const tierName = (profile.scaffolding_tier_info && profile.scaffolding_tier_info.tier_name) || (profile.scaffolding_tier || "Bậc thích ứng");
+      const badgeText = `🎯 ${tierName} • Chú ý ${profile.attention_span_minutes}p • Vi bước ${profile.recommended_micro_task_duration_sec}s`;
       const badgeEl = document.getElementById('parent-cognitive-badge');
       if (badgeEl) {
         badgeEl.textContent = badgeText;

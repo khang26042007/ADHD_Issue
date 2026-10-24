@@ -187,10 +187,177 @@
       }
     }
 
+    /* ============================================================
+       DYNAMIC 5-TIER ADAPTIVE STEP FUSION (SCENE SCAFFOLDING SPECTRUM)
+       ============================================================ */
+    function fuseTaskStepsByTier(task, cognitiveProfile) {
+      if (!task || !Array.isArray(task.steps) || task.steps.length === 0) return task;
+      if (task.cat === 'chore' || task.cat === 'routine') return task;
+
+      const prof = cognitiveProfile || (typeof appState !== 'undefined' && appState.cognitiveProfile) || {};
+      let cdi = 0.50;
+      let wm = prof.working_memory_capacity || 2;
+      if (prof.normalized_indices && prof.normalized_indices.composite_deficit_index !== undefined) {
+        cdi = Number(prof.normalized_indices.composite_deficit_index);
+      } else if (prof.composite_deficit_index !== undefined) {
+        cdi = Number(prof.composite_deficit_index);
+      }
+
+      const tier = (typeof resolveScaffoldingTier === 'function') 
+        ? resolveScaffoldingTier(cdi, wm)
+        : { tier_id: 2, scaffolding_tier: 'TIER_2_HIGH_SCAFFOLD' };
+
+      const tierId = tier.tier_id || 2;
+      const cloned = JSON.parse(JSON.stringify(task));
+      const rawSteps = cloned.steps;
+
+      // Tier 1 & 2: Full detailed scaffold
+      if (tierId <= 2) {
+        cloned.scaffolding_tier_applied = tier.scaffolding_tier;
+        return cloned;
+      }
+
+      // Tier 3: Balanced 3 steps
+      if (tierId === 3) {
+        if (cloned.exercise_type === 'word_problem' && rawSteps.length >= 4) {
+          const s1 = rawSteps[0];
+          const s2 = rawSteps[1];
+          const s3 = rawSteps[2];
+          const s4 = rawSteps[3];
+
+          const mergedStep2 = Object.assign({}, s3, {
+            step_id: 2,
+            badge: "Chọn Phép Tính Phù Hợp",
+            atomic_instruction: (s2.atomic_instruction || "") + " " + (s3.atomic_instruction || ""),
+            prompt_text: (s2.ui_data && s2.ui_data.prompt_text ? s2.ui_data.prompt_text + " " : "") + (s3.ui_data && s3.ui_data.prompt_text ? s3.ui_data.prompt_text : s3.prompt_text || ""),
+          });
+          const finalStep3 = Object.assign({}, s4, {
+            step_id: 3,
+            badge: "Tính Đáp Số",
+            is_final_step: true
+          });
+          cloned.steps = [s1, mergedStep2, finalStep3];
+        } else if (cloned.exercise_type === 'reading_comprehension' && rawSteps.length >= 3) {
+          const s2 = Object.assign({}, rawSteps[1], { step_id: 1, badge: "Dò Chủ Thể" });
+          const s3 = Object.assign({}, rawSteps[2], { step_id: 2, badge: "Trả Lời Đọc Hiểu", is_final_step: true });
+          cloned.steps = [s2, s3];
+        }
+        cloned.scaffolding_tier_applied = tier.scaffolding_tier;
+        return cloned;
+      }
+
+      // Tier 4: Guided Independence (2 steps)
+      if (tierId === 4) {
+        if (cloned.exercise_type === 'word_problem' && rawSteps.length >= 4) {
+          const calcStep = rawSteps[rawSteps.length - 1];
+          const s1 = Object.assign({}, calcStep, {
+            step_id: 1,
+            badge: "Lập Phép Tính & Giải",
+            atomic_instruction: "Viết phép tính và tính kết quả của bài toán.",
+            prompt_text: (cloned.original_text || "") + "\n\nViết phép tính và kết quả:",
+            is_final_step: false
+          });
+          const s2 = {
+            step_id: 2,
+            badge: "Đáp Số & Kiểm Tra",
+            action_verb: "Chọn",
+            atomic_instruction: "Xác nhận đáp số kèm đơn vị danh số.",
+            type: "single_choice",
+            ui_type: "single_choice",
+            ui_data: {
+              prompt_text: "Đáp số cuối cùng của bài toán là gì?",
+              options: [
+                calcStep.success_criteria && calcStep.success_criteria.expected_answer 
+                  ? `${calcStep.success_criteria.expected_answer} (Chính xác)` 
+                  : "Đáp số đúng",
+                "Chưa hoàn thành"
+              ]
+            },
+            success_criteria: {
+              expected_answer: calcStep.success_criteria && calcStep.success_criteria.expected_answer 
+                ? `${calcStep.success_criteria.expected_answer} (Chính xác)` 
+                : "Đáp số đúng"
+            },
+            duration_sec: 120,
+            is_final_step: true
+          };
+          cloned.steps = [s1, s2];
+        } else if (cloned.exercise_type === 'reading_comprehension' && rawSteps.length >= 3) {
+          const sFinal = Object.assign({}, rawSteps[rawSteps.length - 1], {
+            step_id: 1,
+            badge: "Trả Lời Đọc Hiểu Độc Lập",
+            atomic_instruction: "Đọc đoạn văn và chọn câu trả lời đúng.",
+            is_final_step: true
+          });
+          cloned.steps = [sFinal];
+        } else if (rawSteps.length > 2) {
+          cloned.steps = [rawSteps[0], rawSteps[rawSteps.length - 1]];
+          cloned.steps[0].step_id = 1;
+          cloned.steps[1].step_id = 2;
+          cloned.steps[1].is_final_step = true;
+        }
+        cloned.scaffolding_tier_applied = tier.scaffolding_tier;
+        return cloned;
+      }
+
+      // Tier 5: Mastery & Challenge (1 step + 1 challenge)
+      if (tierId === 5) {
+        const lastStep = rawSteps[rawSteps.length - 1];
+        const sMaster = Object.assign({}, lastStep, {
+          step_id: 1,
+          badge: "Giải Trọn Vẹn Độc Lập",
+          atomic_instruction: "Tự lập giải trọn vẹn bài toán.",
+          prompt_text: (cloned.original_text || "") + "\n\nNhập kết quả bài toán:",
+          is_final_step: false
+        });
+        const sBonus = {
+          step_id: 2,
+          badge: "Thử Thách Vượt Cấp 👑",
+          action_verb: "Suy luận",
+          atomic_instruction: "Thử thách phản biện: Nếu dữ liệu tăng thêm gấp đôi thì sao?",
+          type: "single_choice",
+          ui_type: "single_choice",
+          ui_data: {
+            prompt_text: "Thử thách tư duy: Con có tự tin giải các bài toán nâng cao tiếp theo không?",
+            options: ["Rất tự tin, sẵn sàng! 🚀", "Milo cùng làm với con nhé! 🌟"]
+          },
+          success_criteria: { expected_answer: "Rất tự tin, sẵn sàng! 🚀" },
+          duration_sec: 180,
+          is_final_step: true
+        };
+        cloned.steps = [sMaster, sBonus];
+        cloned.scaffolding_tier_applied = tier.scaffolding_tier;
+        return cloned;
+      }
+
+      return cloned;
+    }
+    if (typeof window !== 'undefined') window.fuseTaskStepsByTier = fuseTaskStepsByTier;
+
     function renderChildWorkspaceStep(stepIndex) {
       if (stepIndex !== undefined && stepIndex !== null) {
         appState.currentStepIndex = stepIndex;
       }
+      
+      // Auto-adapt steps dynamically based on cognitive profile tier
+      if (appState.activeTask && !appState.activeTask._fusedTier) {
+        const fused = fuseTaskStepsByTier(appState.activeTask, appState.cognitiveProfile);
+        if (fused && fused.steps) {
+          appState.activeTask = fused;
+          appState.activeTask._fusedTier = true;
+        }
+      }
+
+      // Initialize behavioral telemetry tracker for this step
+      window._stepStartTs = Date.now();
+      window._stepTelemetry = {
+        task_initiation_latency_sec: null,
+        mistakes_count: 0,
+        hints_used: 0,
+        post_error_freeze_sec: 0,
+        last_wrong_ts: null
+      };
+
       const task = appState.activeTask;
       const stepIdx = appState.currentStepIndex;
       const totalSteps = task.steps.length;

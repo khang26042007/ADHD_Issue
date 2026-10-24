@@ -20,6 +20,7 @@ load_dotenv()
 
 from google import genai
 from google.genai import types
+from src.adhd_scoring.scoring_service import resolve_scaffolding_tier
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +451,58 @@ async def decompose_exercise_with_gemini(
     else:
         schema_to_use = STANDARD_MATH_DECOMPOSER_SCHEMA
 
+    # 2. Xac dinh Bac Gian giao 5 cap do tu Cognitive Profile
+    cdi_val = 0.50
+    wm_val = 2
+    if cognitive_profile:
+        norm_idx = cognitive_profile.get("normalized_indices", {})
+        if "composite_deficit_index" in norm_idx:
+            cdi_val = float(norm_idx["composite_deficit_index"])
+        elif "composite_deficit_index" in cognitive_profile:
+            cdi_val = float(cognitive_profile["composite_deficit_index"])
+        wm_val = cognitive_profile.get("working_memory_capacity", 2)
+
+    tier_info = resolve_scaffolding_tier(cdi_val, wm_val)
+    tier_id = tier_info["tier_id"]
+    tier_name = tier_info["tier_name"]
+    target_steps = tier_info["target_step_count"]
+
+    if tier_id == 1:
+        tier_rule = """- CHỈ ĐỊNH PHÂN BẬC BẬC 1: SIÊU PHÂN RÃ (5 VI BƯỚC NGUYÊN TỬ, DÀNH CHO TRẺ ADHD NẶNG):
+  + Bắt buộc phân rã tối đa 5 bước cực nhỏ (< 10 từ/bước, 1 động từ đơn).
+  + Toán lời văn: Bước 1 gạch chân số 1; Bước 2 gạch chân số 2 + từ khóa; Bước 3 hỏi ý nghĩa từ khóa; Bước 4 chọn phép tính; Bước 5 tính toán.
+  + Đọc hiểu: Dò từ khóa ở câu đầu -> Xác định chủ thể -> Trả lời câu hỏi.
+  + Tiếng Anh: Chia thành từng cụm 2 từ (cặp mảnh ghép).
+  + Trắc nghiệm chỉ tối đa 2 lựa chọn (50/50)."""
+    elif tier_id == 2:
+        tier_rule = """- CHỈ ĐỊNH PHÂN BẬC BẬC 2: GIÀN GIÁO CHUYÊN SÂU (4 VI BƯỚC CHUẨN GDPT 2018):
+  + Bắt buộc phân rã thành 4 bước: 
+    Bước 1 (highlight): Gạch chân đầy đủ số liệu và từ khóa toán tử.
+    Bước 2 (single_choice): Hỏi ý nghĩa từ khóa (+ hay -).
+    Bước 3 (single_choice): Chọn biểu thức phép tính.
+    Bước 4 (text_input): Tính toán đáp số.
+  + Đọc hiểu: Gạch chân từ khóa trong bài đọc -> Dò chủ thể -> Chọn đáp án trắc nghiệm.
+  + Tiếng Anh: Dịch từ -> Ghép vế -> Chọn câu đúng."""
+    elif tier_id == 3:
+        tier_rule = """- CHỈ ĐỊNH PHÂN BẬC BẬC 3: GIÀN GIÁO CÂN BẰNG (3 VI BƯỚC GỘP, DÀNH CHO TRẺ TIẾN BỘ):
+  + Bắt buộc phân rã thành đúng 3 bước:
+    Bước 1 (single_choice hoặc highlight): Đọc đề và chọn phép tính (gộp bước gạch chân và nhận diện phép tính).
+    Bước 2 (text_input): Đặt tính và tính nhẩm đáp số.
+    Bước 3 (single_choice hoặc text_input): Kết luận danh số đơn vị hoặc kiểm tra lại.
+  + Đọc hiểu: Bỏ bước gạch chân mớm ý, Bước 1 đọc lướt và trả lời câu hỏi đọc hiểu, Bước 2 trích dẫn chứng.
+  + Tiếng Anh: Ghép câu từ 3 khối lớn."""
+    elif tier_id == 4:
+        tier_rule = """- CHỈ ĐỊNH PHÂN BẬC BẬC 4: TỰ LẬP CÓ HƯỚNG DẪN (2 BƯỚC TỔNG HỢP, DÀNH CHO TRẺ TIỆM CẬN BÌNH THƯỜNG):
+  + Bắt buộc rút gọn thành đúng 2 bước (Scaffolding Fading):
+    Bước 1 (text_input): Trẻ tự lập biểu thức và tính đáp số trong 1 card (ví dụ: '15 - 8 = 7').
+    Bước 2 (text_input hoặc single_choice): Ghi câu kết luận đáp số hoàn chỉnh kèm đơn vị.
+  + Đọc hiểu: Trả lời câu hỏi đọc hiểu suy luận + viết câu tóm tắt.
+  + Tiếng Anh: Sắp xếp toàn bộ câu hoàn chỉnh trực tiếp."""
+    else:
+        tier_rule = """- CHỈ ĐỊNH PHÂN BẬC BẬC 5: TỰ CHỦ HOÀN TOÀN & MỞ RỘNG (1 BƯỚC GIẢI + 1 THỬ THÁCH BONUS):
+  + Bước 1 (text_input): Trẻ tự lập giải trọn vẹn bài toán trong 1 card duy nhất.
+  + Bước 2 (single_choice hoặc text_input): Thử thách tư duy mở rộng / phản biện liên quan đến đề bài."""
+
     user_prompt = f"""
 Đề bài gốc:
 "{raw_text}"
@@ -457,14 +510,16 @@ async def decompose_exercise_with_gemini(
 Khối lớp: Lớp {grade}
 Ngách chuyên biệt đã xác định: {category}
 Hồ sơ nhận thức trẻ: {json.dumps(cognitive_profile or {}, ensure_ascii=False)}
+Phân bậc giàn giáo áp dụng: {tier_name} (Mục tiêu: {target_steps} bước)
 
-Hãy phân tích và băm bài này thành chuỗi vi nhiệm vụ nguyên tử (3 đến 5 bước) theo đúng JSON Schema đã định.
+{tier_rule}
+
+Hãy phân tích và băm bài này thành chuỗi vi nhiệm vụ nguyên tử ({target_steps} bước) theo đúng JSON Schema đã định.
 LƯU Ý QUAN TRỌNG:
 - BÓC TÁCH ĐỀ BÀI TRẮC NGHIỆM: Nếu đề bài có các đáp án A, B, C, D (ví dụ: 'A. 23 m\nB. 46 m...'): BẮT BUỘC BỎ HẾT các đáp án đó ra khỏi `original_text` và `prompt_text` của Bước 1 (Gạch chân). Thân đề bài chỉ giữ lại câu chuyện và câu hỏi. Các phương án A, B, C, D chỉ xuất hiện ở bước chọn trắc nghiệm cuối cùng.
 - Với bài hình học: TUYỆT ĐỐI KHÔNG đưa công thức vào hình vẽ SVG (`geometry_spec`). Nếu tính chu vi hình chữ nhật: BẮT BUỘC chia làm 2 bước tính toán riêng biệt: Bước tính nửa chu vi (dài + rộng), sau đó Bước tính chu vi (nửa chu vi × 2).
 - Với bài toán rút về đơn vị: BẮT BUỘC chia làm 2 bước tính toán: Bước 1 rút về 1 đơn vị bằng phép chia, Bước 2 nhân lên số đơn vị cần tìm.
 - Với phép tính nhiều toán hạng (như tìm phân số A : B × C hoặc tìm số lớn (A + B) : 2): BẮT BUỘC dùng ui_type='progressive_calculation' và chia thành 2 nhịp lũy tiến trong `progressive_phases`: Nhịp 1 rút về 1 đơn vị hoặc tính tổng, Nhịp 2 nhân lên hoặc chia đôi. Bước tìm đại lượng còn lại (như tìm số vịt) chuyển sang bước sau bình thường (không lạm dụng).
-- Với bài toán có lời văn: BƯỚC 1 gạch chân ĐẦY ĐỦ 2 nhóm: đại lượng kèm đơn vị VÀ từ khóa toán tử ('tất cả', 'còn lại', 'nhiều hơn'); BƯỚC 2 hỏi ý nghĩa từ khóa; BƯỚC 3 chọn phép tính; BƯỚC 4 tính toán.
 - Với phép tính cộng/trừ/nhân/chia: `prompt_text` của bước tính toán phải chứa biểu thức số học rõ ràng 2 toán hạng (ví dụ: '15 + 8 = ?', '23 × 2 = ?', '56 : 2 = ?') để kích hoạt giao diện đặt tính cột dọc theo dòng (phép chia tự động chuyển thành bảng đặt tính phép chia chuẩn tiểu học).
 """
 

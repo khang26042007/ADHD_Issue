@@ -22,11 +22,21 @@ Dự án áp dụng chặt chẽ mô hình Chức năng Điều hành của Russ
 │                              │ chu vi với diện tích.        │ xạ tự ái, bỏ cuộc ngay.       │
 ├──────────────────────────────┼──────────────────────────────┼───────────────────────────────┤
 │ 👉 GIẢI PHÁP:                │ 👉 GIẢI PHÁP:                │ 👉 GIẢI PHÁP:                 │
-│ Visual Timer đĩa tròn đếm lùi│ Giàn giáo 2 tầng: Bước 1 luôn│ Robot Milo xoa dịu RSD; Ngăn  │
-│ + Pháo hoa nổ sao Dopamine   │ gạch chân dữ kiện (highlight)│ kéo bài đọc ghim trên đầu; Bố │
+│ Visual Timer đĩa tròn đếm lùi│ Phổ giàn giáo 5 bậc tự thích │ Robot Milo xoa dịu RSD; Ngăn  │
+│ + Pháo hoa nổ sao Dopamine   │ ứng (băm từ 5 bước -> 1 bước)│ kéo bài đọc ghim trên đầu; Bố │
 │ tức thời (< 300ms sau bước). │ + Bộ vẽ SVG hình học tại chỗ.│ mẹ gửi lời khen nỗ lực.       │
 └──────────────────────────────┴──────────────────────────────┴───────────────────────────────┘
 ```
+
+> 🌟 **Thuật Toán Hiệu Chuẩn Động Học Thích Ứng (Adaptive Dynamic EMA Calibration)**:  
+> Khảo sát 9 câu của Bố Mẹ đóng vai trò là **Baseline Prior (Điểm xuất phát ban đầu)**. Khi trẻ thao tác thực tế trên app, hệ thống tự động ghi nhận 5 chỉ số hành vi khách quan:
+> 1. →T_{init}→: Thời gian đóng băng trước thao tác đầu tiên (Task Initiation Latency).
+> 2. →N_{err}→: Số lần thử sai, bấm xóa Numpad hoặc đổi đáp án.
+> 3. →R_{time}→: Tỷ lệ thời gian hoàn thành thực tế so với định mức Visual Timer.
+> 4. →T_{freeze}→: Thời gian đứng hình sau khi làm sai (phản ánh kích hoạt hạch hạnh nhân RSD).
+> 5. →N_{rescue}→: Tần suất kích hoạt bài tập thở 4-4-4 và gọi trợ giúp từ Robot Milo.
+>
+> Dữ liệu được đưa vào thuật toán **Exponential Moving Average (EMA)** với hệ số học →lpha = 0.15→ và chốt chặn Max-Delta →\pm 10\%→ để tự động nâng/hạ cấp bậc giàn giáo một cách mượt mà.
 
 ---
 
@@ -83,9 +93,35 @@ sequenceDiagram
 
 ---
 
-### 2.2. Luồng Phân Rã Sư Phạm Vi Bước 2 Tầng (2-Tier Pedagogical Scaffolding)
+### 2.2. Ma Trận Phân Bậc Giàn Giáo Thích Ứng 5 Cấp Độ (5-Tier Adaptive Scaffolding Spectrum)
 
-Mọi bài tập (đặc biệt là Toán có lời văn và Toán hình học) đều bắt buộc tuân thủ quy trình sư phạm 2 tầng để bảo vệ bộ nhớ làm việc của trẻ:
+Hệ thống không chia nhị phân cứng nhắc mà thích ứng linh hoạt theo **phổ nhận thức liên tục 5 bậc** dựa trên $CDI \in [0.0, 1.0]$ và Sức chứa trí nhớ làm việc $WM \in [1, 5]$:
+
+| Cấp độ | Điều kiện chỉ số | Số bước phân rã | Cấu trúc Toán có lời văn | Cấu trúc Đọc hiểu Tiếng Việt | Cấu trúc Tiếng Anh Tiểu học |
+| :---: | :---: | :---: | :--- | :--- | :--- |
+| **Bậc 1: Siêu phân rã** *(ADHD nặng)* | $CDI \ge 0.75$<br>$WM \le 1$ | **5 vi bước** | Tách riêng gạch chân số 1 → Gạch chân số 2 + từ khóa → Ý nghĩa từ khóa → Chọn phép tính → Tính toán | Mặt nạ đọc từng dòng (Line mask) → Gạch chân từ khóa dòng đầu → Xác định chủ thể → Chọn ý nghĩa → Chốt đáp án | Phân tách câu thành từng cụm mảnh ghép 2 từ có khớp nối màu sắc (Color Puzzle) |
+| **Bậc 2: Giàn giáo cao** *(Chuẩn GDPT)* | $0.55 \le CDI < 0.75$<br>$WM = 2$ | **4 vi bước** | Bước 1: Highlight số liệu & từ khóa → Bước 2: Cầu nối ý nghĩa → Bước 3: Chọn phép tính → Bước 4: Đặt tính dọc | Ghim đoạn văn trên đầu → Gạch chân từ khóa mấu chốt → Dò chủ thể → Trắc nghiệm đọc hiểu | Dịch từ khóa L1 → L2 → Ghép vế khẳng định → Chọn câu hoàn chỉnh |
+| **Bậc 3: Cân bằng** *(ADHD nhẹ)* | $0.35 \le CDI < 0.55$<br>$WM = 3$ | **3 vi bước** | Đọc đề và chọn phép tính (gộp highlight + nhận diện) → Đặt tính và tính nhẩm → Kết luận danh số | Bỏ bước highlight mớm ý, đọc lướt văn bản và trả lời câu hỏi đọc hiểu → Trích dẫn chứng | Ghép trọn vẹn câu từ 3 khối cụm từ lớn (3 chunks) |
+| **Bậc 4: Tự lập nhẹ** *(Tiệm cận bình thường)* | $0.20 \le CDI < 0.35$<br>$WM = 4$ | **2 bước** | Trẻ tự lập biểu thức và tính đáp số trong 1 card (ví dụ: `15 - 8 = 7`) → Ghi câu đáp số hoàn chỉnh | Đọc hiểu câu hỏi suy luận → Tự viết câu tóm tắt nội dung | Tự sắp xếp toàn bộ câu hoàn chỉnh trực tiếp không cần chia cụm |
+| **Bậc 5: Tự chủ & Mở rộng** *(Bình thường / Năng khiếu)* | $CDI < 0.20$<br>$WM = 5$ | **1 bước + 1 thử thách** | Tự giải trọn vẹn bài toán trong 1 card → Thử thách mở rộng tư duy / phản biện | Đọc hiểu độc lập → Câu hỏi cảm thụ / phát triển nhân vật | Sắp xếp câu hoàn chỉnh → Thử thách sáng tạo đặt câu mới |
+
+```mermaid
+flowchart TD
+    Raw["Đề bài gốc (GDPT 2018 / Bài sinh hoạt / Ngoại ngữ)"] --> CognitiveCheck{"Kiểm tra Phân bậc Nhận thức<br/>(Scaffolding Tier 1-5)"}
+
+    %% Tier 1 & 2: High Scaffolding
+    CognitiveCheck -->|"Bậc 1 & 2 (ADHD nặng/trung bình)"| T1["GIÀN GIÁO CHUYÊN SÂU (4-5 bước)<br/>• Bước 1: Quẹt Dạ Quang (highlight) dữ kiện & từ khóa<br/>• Bước 2: Cầu nối nhận thức hỏi ý nghĩa từ khóa<br/>• Bước 3: Chọn biểu thức số học hoặc mảnh ghép<br/>• Bước 4: Đặt tính dọc / Bàn phím số Numpad"]
+    
+    %% Tier 3: Balanced Scaffolding
+    CognitiveCheck -->|"Bậc 3 (ADHD nhẹ - 3 bước)"| T3["GIÀN GIÁO CÂN BẰNG (3 bước)<br/>• Bước 1: Đọc đề & Xác định phép tính (Gộp 1+2)<br/>• Bước 2: Đặt tính và giải đáp số<br/>• Bước 3: Điền danh số và kiểm tra"]
+    
+    %% Tier 4 & 5: Scaffolding Fading
+    CognitiveCheck -->|"Bậc 4 & 5 (Tiệm cận bình thường)"| T5["RÚT GIÀN GIÁO & TỰ LẬP (1-2 bước)<br/>• Bước 1: Tự lập biểu thức và giải thẳng đáp số<br/>• Bước 2: Câu hỏi thử thách mở rộng / phản biện tư duy"]
+
+    T1 --> StarReward["⭐ Nổ sao Dopamine < 300ms sau mỗi bước"]
+    T3 --> StarReward
+    T5 --> StarReward
+```
 
 ```mermaid
 flowchart TD
@@ -173,7 +209,7 @@ Khi cần tinh chỉnh bài tập hoặc thêm dạng bài mới, bắt buộc t
 │                                                                                             │
 │ 4. CHẠY KIỂM THỬ XÁC NHẬN:                                                                  │
 │    python tests/runner.py                                                                   │
-│    Get-ChildItem tests/adversarial/*.js | ForEach-Object { node $_.FullName }               │
+│    Get-ChildItem tests/adversarial/*.js | ForEach-Object { node →_.FullName }               │
 │    Tất cả bài test bắt buộc phải đạt 100% GREEN (Zero Regression).                          │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -233,13 +269,13 @@ Frontend sử dụng Vanilla JS theo nguyên tắc Đơn trách nhiệm, đượ
 | :--- | :--- | :--- |
 | **`tasks_data.js`** | ~4.010 | Kho bài tập chuẩn hóa GDPT 2018 dùng cho chế độ offline hoặc test sandbox. |
 | **`audio.js`** | ~110 | Trình tổng hợp âm thanh Web Audio API (ting ting nổ sao, còi, âm đàn harpe hạ nhiệt). |
-| **`sync_bus.js`** | ~520 | `MiloSyncBus`: Đồng bộ 3 lớp (WebSocket Hub $\rightarrow$ BroadcastChannel đa tab $\rightarrow$ LocalStorage fallback). Chống dội lặp, tự kết nối lại có backoff. |
+| **`sync_bus.js`** | ~520 | `MiloSyncBus`: Đồng bộ 3 lớp (WebSocket Hub →\rightarrow→ BroadcastChannel đa tab →\rightarrow→ LocalStorage fallback). Chống dội lặp, tự kết nối lại có backoff. |
 | **`state.js`** | ~210 | Store nhận thức trung tâm (`appState`), lưu trữ/phục hồi localStorage, chuyển đổi profile (`?role=child`, `?role=parent`, `?role=dual`). |
 | **`geometry.js`** | ~100 | Bộ vẽ SVG giàn giáo hình học (`renderGeometrySvg`): ngôi nhà đếm cửa sổ tròn, hình chữ nhật, hình bình hành, ao cá trong vườn. |
 | **`roadmap.js`** | ~380 | Vẽ hải trình đảo nhiệm vụ trên canvas S-Curve Bézier Spline, rương kho báu, quản lý danh sách đảo phía phụ huynh. |
-| **`renderers.js`** | ~1.380 | Các bộ tương tác xúc giác ADHD: quẹt gạch chân dạ quang (`highlight`), bàn phím số ảo `numpad`, đặt tính cột dọc nhiều chữ số, trắc nghiệm nút lớn. |
-| **`rewards_timer_milo.js`** | ~320 | Đĩa tròn Visual Timer đếm lùi theo ngưỡng chú ý, tính năng Soft Pause giải tỏa áp lực, bài tập thở 4-4-4, đổi Vé Vàng thưởng. |
-| **`parent_survey.js`** | ~790 | Bảng khảo sát chẩn đoán 9 câu VADPRS/SNAP-IV, thuật toán tính vector nhận thức EF/AS/RSD, lọc bài theo khối lớp và giao bài theo lô. |
+| **`renderers.js`** | ~1.480 | Bộ render vi bước xúc giác ADHD + Động cơ gộp bước `fuseTaskStepsByTier` (co giãn từ 5 bước xuống 1 bước) + Bộ ghi nhận Telemetry tương tác thực tế (→T_{init}, N_{err}, T_{freeze}→). |
+| **`rewards_timer_milo.js`** | ~360 | Đĩa tròn Visual Timer tự động co giãn theo ngưỡng chú ý, Soft Pause giải tỏa áp lực, bài tập thở 4-4-4, đổi Vé Vàng thưởng, tự động kích hoạt cập nhật nhận thức khi hoàn thành bước. |
+| **`parent_survey.js`** | ~850 | Bảng khảo sát 9 câu VADPRS/SNAP-IV, thuật toán EMA hiệu chuẩn động học `adaptiveUpdateCognitiveProfile`, phân giải 5 bậc `resolveScaffoldingTier` và cập nhật radar nhận thức thời gian thực. |
 | **`decomposer_fallback.js`**| ~690 | Bộ băm bài bằng luật Regex client-side khi backend mất kết nối, hỗ trợ tự soạn bài thủ công. |
 | **`app.js`** | ~90 | Điểm gắn kết DOMContentLoaded, khởi tạo bus, gọi `syncTasksFromApi()` tự động đồng bộ bài từ FastAPI. |
 
@@ -285,14 +321,14 @@ python -m unittest tests/e2e/test_dual_app_e2e.py
 
 ### 3. Bộ Kiểm thử Tấn công Phá hoại Node.js (Adversarial Stress Suites)
 ```powershell
-Get-ChildItem tests/adversarial/*.js | ForEach-Object { node $_.FullName }
+Get-ChildItem tests/adversarial/*.js | ForEach-Object { node →_.FullName }
 ```
 Bao gồm 8 bộ test chuyên sâu:
 1. `test_adhd_ui_ergonomics_adversarial.js`: Độ nảy cảm ứng, quy chuẩn công thái học ADHD.
 2. `test_challenger_curriculum_ui.js`: Biên dữ liệu 29 bài tập, bão click nút bấm, giới hạn numpad buffer.
 3. `test_challenger_storage_cheer_stress.js`: Phục hồi khi LocalStorage bị corrupt, rớt mạng, gửi lời khen.
 4. `test_m3_ai_decomposition_interactive_stages.js`: Quy trình tương tác vi bước của trẻ.
-5. `test_m4_ergonomics_contrast_themes.js`: Tương phản màu sắc WCAG AA ($\ge 4.5:1$).
+5. `test_m4_ergonomics_contrast_themes.js`: Tương phản màu sắc WCAG AA (→\ge 4.5:1→).
 6. `test_milo_sync_adversarial.js`: Tải xung đột 50 event/giây trên MiloSyncBus, chống lặp packet.
 7. `test_parent_survey_cognitive_profile.js`: Kiểm thử toán học vector nhận thức EF/AS/RSD.
 8. `test_whitebox_sync_simulator_adversarial.js`: Luồng duyệt Vé Vàng, chống double-spend điểm thưởng.

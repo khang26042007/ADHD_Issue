@@ -450,6 +450,22 @@ class PairingSubmitRequest(BaseModel):
     code: str
 
 
+class TelemetryUpdateRequest(BaseModel):
+    task_initiation_latency_sec: Optional[float] = 5.0
+    mistakes_count: Optional[int] = 0
+    hints_used: Optional[int] = 0
+    actual_duration_sec: Optional[float] = 60.0
+    timer_allocated_sec: Optional[float] = 120.0
+    focus_duration_min: Optional[float] = 10.0
+    post_error_freeze_sec: Optional[float] = 0.0
+    milo_rescues_count: Optional[int] = 0
+    abandoned_count: Optional[int] = 0
+    alpha: Optional[float] = 0.15
+    max_delta: Optional[float] = 0.10
+    task_id: Optional[str] = None
+    step_id: Optional[Any] = None
+
+
 class ChildStateUpdateRequest(BaseModel):
     stars: Optional[int] = None
     roadmap: Optional[List[Dict[str, Any]]] = None
@@ -669,6 +685,61 @@ async def update_child_state_endpoint(kid_id: str, req: ChildStateUpdateRequest)
             req.photo_proofs,
         )
     return {"status": "success", "kid_id": kid_id}
+
+@app.post("/api/child/{kid_id}/telemetry")
+async def submit_child_telemetry(kid_id: str, req: TelemetryUpdateRequest):
+    """
+    Submits real-time behavioral telemetry from child app,
+    adapts Cognitive Profile using 5-Tier EMA algorithm,
+    persists in SQLite, and broadcasts updated profile to the room.
+    """
+    from src.adhd_scoring.scoring_service import adaptive_update_cognitive_profile
+    child = db.get_child_by_id(kid_id)
+    if not child:
+        raise HTTPException(status_code=404, detail=f"Child '{kid_id}' not found")
+    
+    current_profile = child.get("cognitive_profile") or {
+        "attention_span_minutes": 10,
+        "recommended_micro_task_duration_sec": 120,
+        "working_memory_capacity": 2,
+        "rsd_sensitivity_level": "HIGH",
+        "scaffolding_level": "MODERATE",
+    }
+    
+    updated_profile = adaptive_update_cognitive_profile(
+        current_profile=current_profile,
+        telemetry_data=req.model_dump(),
+        alpha=req.alpha or 0.15,
+        max_delta=req.max_delta or 0.10,
+    )
+    
+    db.update_child_cognitive_profile(kid_id, updated_profile)
+    db.log_activity(kid_id, "TELEMETRY_ADAPTIVE_UPDATE", {
+        "telemetry": req.model_dump(),
+        "tier": updated_profile.get("scaffolding_tier"),
+        "cdi": updated_profile.get("normalized_indices", {}).get("composite_deficit_index"),
+    })
+    
+    tier_info = updated_profile.get("scaffolding_tier_info", {})
+    tier_name = tier_info.get("tier_name", updated_profile.get("scaffolding_tier", "Bậc thích ứng"))
+    sync_event = {
+        "event_type": "COGNITIVE_PROFILE_UPDATED",
+        "timestamp": time.time(),
+        "kid_id": kid_id,
+        "target_kid_id": kid_id,
+        "cognitive_profile": updated_profile,
+        "tier_info": tier_info,
+        "message": f"Hồ sơ nhận thức của bé đã được cập nhật: {tier_name}",
+    }
+    await manager.broadcast_to_room("family_room_milo_01", sync_event)
+    await manager.broadcast_to_room("family_default", sync_event)
+    
+    return {
+        "status": "success",
+        "kid_id": kid_id,
+        "cognitive_profile": updated_profile,
+    }
+
 
 @app.get("/api/health")
 async def health_check():
@@ -1135,12 +1206,35 @@ async def websocket_sync_endpoint(
                         room_state["child_roadmap"] = new_tasks
                         room_state["current_roadmap_index"] = 0
                         room_state["current_step_index"] = 0
-            elif event_type == "KID_STEP_COMPLETED":
+            elif event_type in ("KID_STEP_COMPLETED", "STEP_TELEMETRY_UPDATE"):
                 step_id = data.get("step_id")
                 points = data.get("dopamine_points", 25)
-                if ev_kid_id == active_kid:
+                if ev_kid_id == active_kid and event_type == "KID_STEP_COMPLETED":
                     room_state["stars"] = room_state.get("stars", 450) + points
                     room_state["current_step_index"] = room_state.get("current_step_index", 0) + 1
+                
+                # Check for adaptive telemetry in payload
+                telemetry = data.get("telemetry") or payload_dict.get("telemetry")
+                if telemetry and isinstance(telemetry, dict):
+                    try:
+                        from src.adhd_scoring.scoring_service import adaptive_update_cognitive_profile
+                        c_rec = db.get_child_by_id(ev_kid_id)
+                        if c_rec:
+                            cur_prof = c_rec.get("cognitive_profile") or {}
+                            new_prof = adaptive_update_cognitive_profile(cur_prof, telemetry, alpha=0.15, max_delta=0.10)
+                            db.update_child_cognitive_profile(ev_kid_id, new_prof)
+                            t_info = new_prof.get("scaffolding_tier_info", {})
+                            await manager.broadcast_to_room(room_id, {
+                                "event_type": "COGNITIVE_PROFILE_UPDATED",
+                                "timestamp": time.time(),
+                                "kid_id": ev_kid_id,
+                                "target_kid_id": ev_kid_id,
+                                "cognitive_profile": new_prof,
+                                "tier_info": t_info,
+                                "message": f"Hồ sơ nhận thức đã thích ứng: {t_info.get('tier_name', '')}",
+                            })
+                    except Exception as e:
+                        logger.warning(f"Error in WS telemetry adaptive update: {e}")
             elif event_type == "KID_TASK_COMPLETED":
                 if ev_kid_id == active_kid:
                     room_state["current_roadmap_index"] = room_state.get("current_roadmap_index", 0) + 1
